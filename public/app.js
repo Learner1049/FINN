@@ -276,6 +276,10 @@ function createAvatarMesh() {
     const pupil = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.05, 0.02), pupilMat);
     pupil.position.set(x, 2.1, 0.36); group.add(pupil);
   });
+  const mouthMat = new THREE.MeshBasicMaterial({ color: 0x1a0a2e });
+  const mouth = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.06, 0.05), mouthMat);
+  mouth.position.set(0, 1.92, 0.33); group.add(mouth);
+  group.mouthMesh = mouth;
   [-0.55, 0.55].forEach(x => {
     const arm = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.8, 0.25), mat);
     arm.position.set(x, 1.1, 0); arm.castShadow = true; group.add(arm);
@@ -300,10 +304,10 @@ function spawnRemotePlayer(userId, userData) {
   mesh.rotation.y = userData.rotation || 0;
   scene.add(mesh);
   const nameSprite = createTextSprite(userData.username);
-  nameSprite.position.set(0, 2.8, 0);
+  nameSprite.position.set(0, 0.35, 0.4);
   mesh.add(nameSprite);
   remotePlayers.set(userId, {
-    mesh, nameSprite, bubbleSprite: null, bubbleTimeout: null,
+    mesh, nameSprite, mouthMesh: mesh.mouthMesh, bubbleSprite: null, bubbleTimeout: null,
     data: { ...userData },
     targetPos: new THREE.Vector3(userData.position.x, userData.position.y || 0, userData.position.z),
     targetRot: userData.rotation || 0
@@ -370,7 +374,7 @@ function showSpeechBubble(userId, message) {
   if (!rp) return;
   if (rp.bubbleSprite) { rp.mesh.remove(rp.bubbleSprite); if (rp.bubbleTimeout) clearTimeout(rp.bubbleTimeout); }
   const bubble = createBubbleSprite(message);
-  bubble.position.set(0, 3.3, 0);
+  bubble.position.set(0, 3.8, 0);
   rp.mesh.add(bubble);
   rp.bubbleSprite = bubble;
   rp.bubbleTimeout = setTimeout(() => { rp.mesh.remove(bubble); rp.bubbleSprite = null; }, 5000);
@@ -650,10 +654,10 @@ function handleRemoteStream(userId, stream) {
     const texture = new THREE.VideoTexture(video);
     texture.minFilter = THREE.LinearFilter;
     const plane = new THREE.Mesh(
-      new THREE.PlaneGeometry(0.7, 0.55),
+      new THREE.PlaneGeometry(1.1, 0.85),
       new THREE.MeshBasicMaterial({ map: texture, side: THREE.DoubleSide })
     );
-    plane.position.set(0, 2.7, 0);
+    plane.position.set(0, 2.9, 0);
     if (rp.videoPlane) rp.mesh.remove(rp.videoPlane);
     rp.mesh.add(plane);
     rp.videoPlane = plane;
@@ -688,11 +692,8 @@ function updateSpeakingIndicator() {
     for (let i = 0; i < dataArray.length; i++) sum += dataArray[i];
     const avg = sum / dataArray.length;
 
-    const rp = remotePlayers.get(userId);
-    const name = rp ? rp.data.username : 'Unknown';
-
     if (avg > SPEAK_THRESHOLD) {
-      activeSpeakers.set(userId, { name, level: avg, expiry: now + 800 });
+      activeSpeakers.set(userId, { level: avg, expiry: now + 400 });
     }
   }
 
@@ -701,19 +702,17 @@ function updateSpeakingIndicator() {
     if (now > info.expiry) activeSpeakers.delete(userId);
   }
 
-  // Render indicator
-  const container = document.getElementById('speaking-indicator');
-  if (activeSpeakers.size === 0) {
-    container.innerHTML = '';
-    return;
+  // Animate mouth on each remote player's avatar
+  for (const [userId, rp] of remotePlayers) {
+    if (!rp.mouthMesh) continue;
+    const speaker = activeSpeakers.get(userId);
+    if (speaker) {
+      const open = 0.5 + (speaker.level / 100) * 2.5;
+      rp.mouthMesh.scale.y = open;
+    } else {
+      rp.mouthMesh.scale.y = 1;
+    }
   }
-
-  let html = '';
-  for (const [, info] of activeSpeakers) {
-    const barWidth = Math.min(100, Math.max(20, info.level));
-    html += `<div class="speaker-chip"><span class="speaker-icon">&#9835;</span><span class="speaker-name">${escapeHtml(info.name)}</span><span class="speaker-bar"><span class="speaker-bar-fill" style="width:${barWidth}%"></span></span></div>`;
-  }
-  container.innerHTML = html;
 }
 
 // ── Proximity Audio ──────────────────────────────────────
