@@ -32,6 +32,10 @@ const keys = {};
 let lastPosSend = 0;
 const remotePlayers = new Map();
 
+// Mobile joystick
+const joystick = { active: false, dx: 0, dy: 0, touchId: null };
+const isMobile = /Android|iPhone|iPad|iPod|webOS/i.test(navigator.userAgent) || ('ontouchstart' in window && window.innerWidth < 1024);
+
 // WebRTC
 let localStream = null;
 const peerConnections = new Map();
@@ -432,6 +436,91 @@ function initControls() {
     if (e.code === 'Escape') document.getElementById('chat-input').blur();
     e.stopPropagation();
   });
+
+  // Mobile joystick
+  if (isMobile) initJoystick();
+}
+
+function initJoystick() {
+  const zone = document.getElementById('joystick-zone');
+  const base = document.getElementById('joystick-base');
+  const thumb = document.getElementById('joystick-thumb');
+  if (!zone) return;
+  zone.classList.remove('hidden');
+
+  const maxDist = 50;
+
+  zone.addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    const touch = e.changedTouches[0];
+    joystick.touchId = touch.identifier;
+    joystick.active = true;
+    const rect = zone.getBoundingClientRect();
+    const cx = rect.left + rect.width / 2;
+    const cy = rect.top + rect.height / 2;
+    const dx = Math.max(-maxDist, Math.min(maxDist, touch.clientX - cx));
+    const dy = Math.max(-maxDist, Math.min(maxDist, touch.clientY - cy));
+    thumb.style.transform = `translate(${dx}px, ${dy}px)`;
+    joystick.dx = dx / maxDist;
+    joystick.dy = dy / maxDist;
+  }, { passive: false });
+
+  zone.addEventListener('touchmove', (e) => {
+    e.preventDefault();
+    for (const touch of e.changedTouches) {
+      if (touch.identifier !== joystick.touchId) continue;
+      const rect = zone.getBoundingClientRect();
+      const cx = rect.left + rect.width / 2;
+      const cy = rect.top + rect.height / 2;
+      let dx = touch.clientX - cx;
+      let dy = touch.clientY - cy;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist > maxDist) { dx = dx / dist * maxDist; dy = dy / dist * maxDist; }
+      thumb.style.transform = `translate(${dx}px, ${dy}px)`;
+      joystick.dx = dx / maxDist;
+      joystick.dy = dy / maxDist;
+    }
+  }, { passive: false });
+
+  const endTouch = (e) => {
+    for (const touch of e.changedTouches) {
+      if (touch.identifier !== joystick.touchId) continue;
+      joystick.active = false;
+      joystick.dx = 0;
+      joystick.dy = 0;
+      joystick.touchId = null;
+      thumb.style.transform = 'translate(0px, 0px)';
+    }
+  };
+  zone.addEventListener('touchend', endTouch);
+  zone.addEventListener('touchcancel', endTouch);
+
+  // Camera orbit via touch on the right side of the screen
+  const canvasEl = renderer.domElement;
+  let cameraTouchId = null, lastCamX = 0, lastCamY = 0;
+  canvasEl.addEventListener('touchstart', (e) => {
+    for (const touch of e.changedTouches) {
+      if (touch.clientX > window.innerWidth * 0.4 && cameraTouchId === null) {
+        cameraTouchId = touch.identifier;
+        lastCamX = touch.clientX;
+        lastCamY = touch.clientY;
+      }
+    }
+  }, { passive: true });
+  canvasEl.addEventListener('touchmove', (e) => {
+    for (const touch of e.changedTouches) {
+      if (touch.identifier !== cameraTouchId) continue;
+      const sens = settings.mouseSensitivity * 0.004;
+      cameraOrbit.theta -= (touch.clientX - lastCamX) * sens;
+      const yMult = settings.invertY ? -1 : 1;
+      cameraOrbit.phi = Math.max(0.1, Math.min(Math.PI / 2 - 0.05, cameraOrbit.phi + (touch.clientY - lastCamY) * sens * yMult));
+      lastCamX = touch.clientX;
+      lastCamY = touch.clientY;
+    }
+  }, { passive: true });
+  const endCam = (e) => { for (const touch of e.changedTouches) { if (touch.identifier === cameraTouchId) cameraTouchId = null; } };
+  canvasEl.addEventListener('touchend', endCam);
+  canvasEl.addEventListener('touchcancel', endCam);
 }
 
 // ── Game Loop ────────────────────────────────────────────
@@ -458,6 +547,10 @@ function updatePlayer(dt) {
   if (keys['KeyS'] || keys['ArrowDown']) moveDir.sub(forward);
   if (keys['KeyA'] || keys['ArrowLeft']) moveDir.sub(right);
   if (keys['KeyD'] || keys['ArrowRight']) moveDir.add(right);
+  if (joystick.active) {
+    moveDir.add(forward.clone().multiplyScalar(-joystick.dy));
+    moveDir.add(right.clone().multiplyScalar(joystick.dx));
+  }
   const isMoving = moveDir.length() > 0.01;
   if (isMoving) moveDir.normalize();
   const isSprinting = keys['ShiftLeft'] && isMoving && settings.sprintEnabled && sprintStamina > 0;
