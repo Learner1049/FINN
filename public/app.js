@@ -439,7 +439,7 @@ function initControls() {
     const sens = settings.mouseSensitivity * 0.002;
     cameraOrbit.theta -= e.movementX * sens;
     const yMult = settings.invertY ? -1 : 1;
-    cameraOrbit.phi = Math.max(0.1, Math.min(Math.PI / 2 - 0.05, cameraOrbit.phi + e.movementY * sens * yMult));
+    cameraOrbit.phi = Math.max(-Math.PI / 2 + 0.05, Math.min(Math.PI / 2 - 0.05, cameraOrbit.phi + e.movementY * sens * yMult));
   });
 
   canvas.addEventListener('wheel', (e) => {
@@ -529,7 +529,7 @@ function initJoystick() {
       const sens = settings.mouseSensitivity * 0.004;
       cameraOrbit.theta -= (touch.clientX - lastCamX) * sens;
       const yMult = settings.invertY ? -1 : 1;
-      cameraOrbit.phi = Math.max(0.1, Math.min(Math.PI / 2 - 0.05, cameraOrbit.phi + (touch.clientY - lastCamY) * sens * yMult));
+      cameraOrbit.phi = Math.max(-Math.PI / 2 + 0.05, Math.min(Math.PI / 2 - 0.05, cameraOrbit.phi + (touch.clientY - lastCamY) * sens * yMult));
       lastCamX = touch.clientX;
       lastCamY = touch.clientY;
     }
