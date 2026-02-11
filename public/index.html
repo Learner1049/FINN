@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WorldChat</title>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- ═══════════════ LOGIN ═══════════════ -->
+<div id="login-screen">
+  <div class="login-particles" id="login-particles"></div>
+  <div class="login-card">
+    <h1 class="login-title">WORLDCHAT</h1>
+    <p class="login-subtitle">3D multiplayer world with voice & video</p>
+    <input type="text" id="username-input" class="login-input" placeholder="Your name..." maxlength="20" autocomplete="off">
+    <button class="btn-primary btn-large" id="btn-auto-join" onclick="autoJoin()">Quick Join</button>
+    <div class="login-divider"></div>
+    <button class="btn-secondary btn-large" id="btn-create" onclick="createRoom()">Create Private Room</button>
+    <div class="login-divider"></div>
+    <p class="login-join-label">Have a room code?</p>
+    <div class="login-join-row">
+      <input type="text" id="room-code-input" class="login-input code-input" placeholder="e.g. KFX-482" maxlength="7" autocomplete="off">
+      <button class="btn-join-inline" id="btn-join" onclick="joinRoom()">Join</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ GAME UI ═══════════════ -->
+<div id="game-ui" class="hidden">
+  <div id="canvas-container"></div>
+
+  <div id="top-bar">
+    <div class="top-left">
+      <span class="top-logo">WC</span>
+      <div class="room-code-display">
+        <span id="room-code-text" class="room-code-mono"></span>
+        <button class="copy-btn" id="copy-btn" onclick="copyRoomCode()" title="Copy room code">
+          <span class="copy-icon">Copy</span>
+          <span class="copy-done hidden">Copied</span>
+        </button>
+      </div>
+      <span class="map-badge" id="map-badge"></span>
+      <span class="user-count-badge" id="user-count-badge">1/50</span>
+    </div>
+    <div class="top-center">
+      <div id="speaking-indicator"></div>
+    </div>
+    <div class="top-right">
+      <button class="top-btn" onclick="toggleSettings()" title="Settings">Settings</button>
+      <button class="top-btn" onclick="toggleFullscreen()" title="Fullscreen">Fullscreen</button>
+    </div>
+  </div>
+
+  <div id="sprint-bar-container" class="hidden"><div id="sprint-bar-fill"></div></div>
+
+  <div id="hud-bar">
+    <button class="hud-btn active" id="btn-camera-toggle" onclick="toggleCamera()" title="Toggle Camera">Cam</button>
+    <button class="hud-btn active" id="btn-mic-toggle" onclick="toggleMic()" title="Toggle Microphone">Mic</button>
+    <button class="hud-btn active" id="btn-chat-toggle" onclick="toggleChat()" title="Toggle Chat">Chat</button>
+    <button class="hud-btn danger" id="btn-leave" onclick="leaveRoom()" title="Leave Room">Leave</button>
+  </div>
+
+  <div id="crosshair"></div>
+
+  <div id="chat-panel">
+    <div id="chat-messages"></div>
+    <div class="chat-input-row">
+      <input type="text" id="chat-input" placeholder="Type a message..." maxlength="500" autocomplete="off">
+      <button class="chat-send-btn" onclick="sendChat()">Send</button>
+    </div>
+  </div>
+
+  <div id="pip-view" class="hidden">
+    <video id="pip-video" autoplay muted playsinline></video>
+    <span id="pip-name"></span>
+  </div>
+
+  <canvas id="minimap" width="160" height="160"></canvas>
+
+  <div id="instructions">WASD Move | Shift Run | Space Jump | Scroll Zoom | Right-drag Orbit | Tab Players | Enter Chat</div>
+  <div id="toast-container"></div>
+
+  <div id="tab-menu" class="hidden">
+    <div class="tab-menu-panel">
+      <div class="tab-menu-header">
+        <span class="tab-room-code" id="tab-room-code"></span>
+        <span class="tab-map-name" id="tab-map-name"></span>
+      </div>
+      <h3 id="tab-player-count">Players (0/50)</h3>
+      <div class="tab-player-list" id="tab-player-list"></div>
+    </div>
+  </div>
+
+  <div id="settings-panel" class="hidden">
+    <div class="settings-card">
+      <div class="settings-header"><h2>Settings</h2><button class="close-btn" onclick="toggleSettings()">x</button></div>
+      <div class="settings-section">
+        <h3>Audio</h3>
+        <div class="setting-row"><label>Master Volume</label><input type="range" min="0" max="100" value="80" id="set-master-volume"><span class="setting-val" id="val-master-volume">80</span></div>
+        <div class="setting-row"><label>Push to Talk (V)</label><input type="checkbox" id="set-push-to-talk"></div>
+      </div>
+      <div class="settings-divider"></div>
+      <div class="settings-section">
+        <h3>Controls</h3>
+        <div class="setting-row"><label>Mouse Sensitivity</label><input type="range" min="1" max="10" value="3" id="set-mouse-sens"><span class="setting-val" id="val-mouse-sens">3</span></div>
+        <div class="setting-row"><label>Invert Y-Axis</label><input type="checkbox" id="set-invert-y"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="/socket.io/socket.io.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

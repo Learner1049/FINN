@@ -1,0 +1,18 @@
+{
+  "name": "virtual-world-chat",
+  "version": "1.0.0",
+  "description": "3D multiplayer virtual world chat with video, voice, and text",
+  "main": "server/index.js",
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "node --watch server/index.js"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "express": "4.18.2",
+    "socket.io": "4.7.2",
+    "uuid": "9.0.0"
+  }
+}
