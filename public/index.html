@@ -91,25 +91,6 @@
   </div>
   <button id="jump-btn" class="hidden" onclick="mobileJump()">Jump</button>
 
-  <!-- Jukebox -->
-  <button id="jukebox-prompt" class="hidden" onclick="openJukebox()">Music</button>
-  <div id="jukebox-panel" class="hidden">
-    <div class="jukebox-card">
-      <div class="jukebox-header">
-        <h2>Jukebox</h2>
-        <button class="close-btn" onclick="closeJukebox()">x</button>
-      </div>
-      <div id="jukebox-now-playing" class="hidden">
-        <span id="jukebox-now-title"></span>
-        <button class="jukebox-stop-btn" onclick="stopJukebox()">Stop</button>
-      </div>
-      <div class="jukebox-list" id="jukebox-list"></div>
-    </div>
-  </div>
-  <div id="jukebox-player-wrap" class="hidden">
-    <div id="jukebox-yt-player"></div>
-  </div>
-
   <div id="instructions">WASD Move | Shift Run | Space Jump | Scroll Zoom | Right-drag Orbit | Tab Players | Enter Chat</div>
   <div id="toast-container"></div>
 
@@ -143,7 +124,6 @@
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<script src="https://www.youtube.com/iframe_api"></script>
 <script src="/socket.io/socket.io.js"></script>
 <script src="app.js"></script>
 </body>

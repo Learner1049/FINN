@@ -49,25 +49,6 @@ let audioContext = null;
 const speakingAnalysers = new Map(); // userId -> { analyser, dataArray }
 const activeSpeakers = new Map();    // userId -> { name, level, timeout }
 
-// Jukebox
-const JUKEBOX_POS = { x: 12, z: -12 };
-const JUKEBOX_RANGE = 15;
-let jukeboxMesh = null, ytPlayer = null, jukeboxReady = false, jukeboxNearby = false;
-const JUKEBOX_SONGS = [
-  { id: 'dQw4w9WgXcQ', title: 'Never Gonna Give You Up', artist: 'Rick Astley' },
-  { id: 'kJQP7kiw5Fk', title: 'Despacito', artist: 'Luis Fonsi ft. Daddy Yankee' },
-  { id: '9bZkp7q19f0', title: 'Gangnam Style', artist: 'PSY' },
-  { id: 'JGwWNGJdvx8', title: 'Shape of You', artist: 'Ed Sheeran' },
-  { id: 'RgKAFK5djSk', title: 'See You Again', artist: 'Wiz Khalifa ft. Charlie Puth' },
-  { id: 'OPf0YbXqDm0', title: 'Uptown Funk', artist: 'Mark Ronson ft. Bruno Mars' },
-  { id: 'fRh_vgS2dFE', title: 'Sorry', artist: 'Justin Bieber' },
-  { id: 'CevxZvSJLk8', title: 'Roar', artist: 'Katy Perry' },
-  { id: 'hT_nvWreIhg', title: 'Counting Stars', artist: 'OneRepublic' },
-  { id: 'YQHsXMglC9A', title: 'Hello', artist: 'Adele' },
-  { id: 'bo_efYhYU2A', title: 'Bohemian Rhapsody', artist: 'Queen' },
-  { id: 'SlPhMPnQ58k', title: 'Closer', artist: 'The Chainsmokers ft. Halsey' },
-];
-
 const settings = {
   masterVolume: 80, micSensitivity: 50, pushToTalk: false,
   echoCancellation: true, cameraQuality: 'medium', showVideo: true,
@@ -150,15 +131,6 @@ function connectSocket() {
     }
   });
 
-  // Jukebox
-  socket.on('jukebox-play', ({ videoId, title, startedAt }) => {
-    playJukeboxTrack(videoId, title, startedAt);
-  });
-
-  socket.on('jukebox-stop', () => {
-    stopJukeboxPlayback();
-  });
-
   // WebRTC signaling
   socket.on('webrtc-offer', async ({ fromUserId, offer }) => {
     const pc = getOrCreatePeer(fromUserId, false);
@@ -223,8 +195,6 @@ function enterGame(userData) {
   spawnLocalPlayer(userData);
   initControls();
   initMediaStream();
-  buildJukeboxSongList();
-  if (socket) socket.emit('jukebox-sync');
   animate();
 }
 
@@ -307,33 +277,6 @@ function buildMap() {
     });
   }
 
-  // Jukebox object
-  const jbGroup = new THREE.Group();
-  const jbBody = new THREE.Mesh(
-    new THREE.BoxGeometry(1.2, 2, 0.8),
-    new THREE.MeshStandardMaterial({ color: 0x1a0a3a, emissive: 0x7c3aed, emissiveIntensity: 0.3 })
-  );
-  jbBody.position.y = 1; jbGroup.add(jbBody);
-  const jbScreen = new THREE.Mesh(
-    new THREE.BoxGeometry(0.8, 0.6, 0.05),
-    new THREE.MeshBasicMaterial({ color: 0x3b82f6 })
-  );
-  jbScreen.position.set(0, 1.5, 0.43); jbGroup.add(jbScreen);
-  const jbTop = new THREE.Mesh(
-    new THREE.BoxGeometry(1.3, 0.3, 0.9),
-    new THREE.MeshStandardMaterial({ color: 0x2a1a4a, emissive: 0xf472b6, emissiveIntensity: 0.4 })
-  );
-  jbTop.position.y = 2.15; jbGroup.add(jbTop);
-  jbGroup.position.set(JUKEBOX_POS.x, 0, JUKEBOX_POS.z);
-  if (!isMobile) { jbBody.castShadow = true; }
-  scene.add(jbGroup);
-  jukeboxMesh = jbGroup;
-
-  if (!isMobile) {
-    const jbLight = new THREE.PointLight(0x7c3aed, 0.8, 12);
-    jbLight.position.set(JUKEBOX_POS.x, 3, JUKEBOX_POS.z);
-    scene.add(jbLight);
-  }
 }
 
 // ── Avatar ───────────────────────────────────────────────
@@ -608,7 +551,6 @@ function animate() {
   updateProximityConnections();
   updateProximityAudio();
   updateSpeakingIndicator();
-  updateJukebox();
   renderer.render(scene, camera);
 }
 
@@ -746,8 +688,15 @@ function getVideoConstraints() {
 }
 
 function getOrCreatePeer(userId, isInitiator) {
-  if (peerConnections.has(userId)) return peerConnections.get(userId);
-  const pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:stun1.l.google.com:19302' }] });
+  // Force clean slate if old connection exists
+  if (peerConnections.has(userId)) closePeerConnection(userId);
+  const pc = new RTCPeerConnection({
+    iceServers: [
+      { urls: 'stun:stun.l.google.com:19302' },
+      { urls: 'stun:stun1.l.google.com:19302' },
+      { urls: 'stun:stun2.l.google.com:19302' }
+    ]
+  });
   if (localStream) {
     localStream.getTracks().forEach(track => {
       const sender = pc.addTrack(track, localStream);
@@ -763,10 +712,21 @@ function getOrCreatePeer(userId, isInitiator) {
   }
   pc.onicecandidate = (e) => { if (e.candidate && socket) socket.emit('webrtc-ice-candidate', { targetUserId: userId, candidate: e.candidate }); };
   pc.ontrack = (e) => { if (e.streams[0]) { remoteStreams.set(userId, e.streams[0]); handleRemoteStream(userId, e.streams[0]); } };
-  pc.onconnectionstatechange = () => { if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') closePeerConnection(userId); };
+  pc.onconnectionstatechange = () => {
+    if (pc.connectionState === 'failed') {
+      closePeerConnection(userId);
+    } else if (pc.connectionState === 'disconnected') {
+      // Wait briefly then retry — transient disconnects are normal
+      setTimeout(() => {
+        if (peerConnections.get(userId) === pc && pc.connectionState === 'disconnected') {
+          closePeerConnection(userId);
+        }
+      }, 3000);
+    }
+  };
   peerConnections.set(userId, pc);
   if (isInitiator) {
-    pc.createOffer().then(offer => {
+    pc.createOffer({ iceRestart: true }).then(offer => {
       const boosted = { type: offer.type, sdp: boostAudioInSDP(offer.sdp) };
       pc.setLocalDescription(boosted);
       socket.emit('webrtc-offer', { targetUserId: userId, offer: boosted });
@@ -781,12 +741,25 @@ function boostAudioInSDP(sdp) {
 
 function closePeerConnection(userId) {
   const pc = peerConnections.get(userId);
-  if (pc) { pc.close(); peerConnections.delete(userId); }
-  remoteStreams.delete(userId);
+  if (pc) {
+    pc.ontrack = null;
+    pc.onicecandidate = null;
+    pc.onconnectionstatechange = null;
+    pc.close();
+    peerConnections.delete(userId);
+  }
+  const stream = remoteStreams.get(userId);
+  if (stream) { stream.getTracks().forEach(t => t.stop()); remoteStreams.delete(userId); }
   const audioEl = remoteAudioElements.get(userId);
-  if (audioEl) { audioEl.srcObject = null; audioEl.remove(); remoteAudioElements.delete(userId); }
+  if (audioEl) { audioEl.pause(); audioEl.srcObject = null; audioEl.remove(); remoteAudioElements.delete(userId); }
   const rp = remotePlayers.get(userId);
-  if (rp && rp.videoPlane) { rp.mesh.remove(rp.videoPlane); rp.videoPlane = null; }
+  if (rp && rp.videoPlane) {
+    if (rp.videoPlane.material.map) rp.videoPlane.material.map.dispose();
+    rp.videoPlane.material.dispose();
+    rp.videoPlane.geometry.dispose();
+    rp.mesh.remove(rp.videoPlane);
+    rp.videoPlane = null;
+  }
   speakingAnalysers.delete(userId);
   activeSpeakers.delete(userId);
 }
@@ -903,18 +876,26 @@ function updateProximityAudio() {
 let proximityTimer = 0;
 function updateProximityConnections() {
   proximityTimer++;
-  if (proximityTimer % (isMobile ? 120 : 60) !== 0) return;
+  if (proximityTimer % (isMobile ? 90 : 45) !== 0) return;
   if (!playerMesh || !socket) return;
   const myPos = playerMesh.position;
-  const range = settings.videoRange;
+  const connectRange = settings.videoRange;
+  const disconnectRange = connectRange * 1.4;
   const nearby = [];
   for (const [uid, rp] of remotePlayers) {
     const dist = myPos.distanceTo(rp.mesh.position);
-    if (dist < range) nearby.push({ userId: uid, dist });
+    if (dist < connectRange) nearby.push({ userId: uid, dist });
   }
   nearby.sort((a, b) => a.dist - b.dist);
   const targetIds = new Set(nearby.slice(0, MAX_PEERS).map(t => t.userId));
-  for (const [uid] of peerConnections) { if (!targetIds.has(uid)) closePeerConnection(uid); }
+  // Only disconnect if beyond the wider disconnect range
+  for (const [uid] of peerConnections) {
+    if (targetIds.has(uid)) continue;
+    const rp = remotePlayers.get(uid);
+    if (!rp) { closePeerConnection(uid); continue; }
+    const dist = myPos.distanceTo(rp.mesh.position);
+    if (dist >= disconnectRange) closePeerConnection(uid);
+  }
   for (const t of nearby.slice(0, MAX_PEERS)) { if (!peerConnections.has(t.userId)) getOrCreatePeer(t.userId, true); }
 }
 
@@ -1038,9 +1019,6 @@ window.leaveRoom = function() {
   if (localStream) { localStream.getTracks().forEach(t => t.stop()); localStream = null; }
   if (audioContext) { audioContext.close().catch(() => {}); audioContext = null; }
   speakingAnalysers.clear(); activeSpeakers.clear();
-  stopJukeboxPlayback();
-  document.getElementById('jukebox-prompt').classList.add('hidden');
-  document.getElementById('jukebox-panel').classList.add('hidden');
   document.getElementById('game-ui').classList.add('hidden');
   document.getElementById('login-screen').classList.remove('hidden');
   document.getElementById('btn-create').disabled = false;
@@ -1050,10 +1028,7 @@ window.leaveRoom = function() {
   scene = null; playerMesh = null; socket = null; myUserId = null;
 };
 
-function closeAllOverlays() {
-  document.getElementById('settings-panel').classList.add('hidden');
-  document.getElementById('jukebox-panel').classList.add('hidden');
-}
+function closeAllOverlays() { document.getElementById('settings-panel').classList.add('hidden'); }
 
 function showTabMenu(show) {
   const menu = document.getElementById('tab-menu');
@@ -1083,91 +1058,6 @@ function showToast(text) {
   const toast = document.createElement('div'); toast.className = 'toast'; toast.textContent = text;
   container.appendChild(toast);
   setTimeout(() => toast.remove(), 3000);
-}
-
-// ── Jukebox ──────────────────────────────────────────────
-
-function buildJukeboxSongList() {
-  const list = document.getElementById('jukebox-list');
-  list.innerHTML = '';
-  JUKEBOX_SONGS.forEach(song => {
-    const div = document.createElement('div');
-    div.className = 'jukebox-song';
-    div.innerHTML = `<span class="jukebox-song-icon">&#9835;</span><div class="jukebox-song-info"><div class="jukebox-song-title">${song.title}</div><div class="jukebox-song-artist">${song.artist}</div></div>`;
-    div.addEventListener('click', () => {
-      if (socket) socket.emit('jukebox-play', { videoId: song.id, title: `${song.title} - ${song.artist}` });
-      document.getElementById('jukebox-panel').classList.add('hidden');
-    });
-    list.appendChild(div);
-  });
-}
-
-window.openJukebox = function() { document.getElementById('jukebox-panel').classList.remove('hidden'); };
-window.closeJukebox = function() { document.getElementById('jukebox-panel').classList.add('hidden'); };
-window.stopJukebox = function() { if (socket) socket.emit('jukebox-stop'); };
-
-function onYouTubeIframeAPIReady() { jukeboxReady = true; }
-window.onYouTubeIframeAPIReady = onYouTubeIframeAPIReady;
-
-function playJukeboxTrack(videoId, title, startedAt) {
-  const nowPlaying = document.getElementById('jukebox-now-playing');
-  document.getElementById('jukebox-now-title').textContent = title;
-  nowPlaying.classList.remove('hidden');
-  document.getElementById('jukebox-player-wrap').classList.remove('hidden');
-
-  const elapsed = Math.max(0, (Date.now() - startedAt) / 1000);
-
-  if (ytPlayer && ytPlayer.loadVideoById) {
-    ytPlayer.loadVideoById({ videoId, startSeconds: elapsed });
-  } else if (jukeboxReady) {
-    ytPlayer = new YT.Player('jukebox-yt-player', {
-      width: '200', height: '120',
-      videoId: videoId,
-      playerVars: { autoplay: 1, controls: 0, modestbranding: 1, rel: 0, start: Math.floor(elapsed) },
-      events: {
-        onReady: (e) => { e.target.setVolume(0); e.target.playVideo(); },
-        onStateChange: (e) => {
-          if (e.data === YT.PlayerState.ENDED) { if (socket) socket.emit('jukebox-stop'); }
-        }
-      }
-    });
-  }
-}
-
-function stopJukeboxPlayback() {
-  document.getElementById('jukebox-now-playing').classList.add('hidden');
-  document.getElementById('jukebox-player-wrap').classList.add('hidden');
-  if (ytPlayer && ytPlayer.stopVideo) { ytPlayer.stopVideo(); }
-}
-
-function updateJukebox() {
-  if (!playerMesh) return;
-  const dx = playerMesh.position.x - JUKEBOX_POS.x;
-  const dz = playerMesh.position.z - JUKEBOX_POS.z;
-  const dist = Math.sqrt(dx * dx + dz * dz);
-  const wasNearby = jukeboxNearby;
-  jukeboxNearby = dist < JUKEBOX_RANGE;
-
-  // Show/hide the "Music" prompt
-  const prompt = document.getElementById('jukebox-prompt');
-  if (jukeboxNearby && !wasNearby) prompt.classList.remove('hidden');
-  else if (!jukeboxNearby && wasNearby) { prompt.classList.add('hidden'); document.getElementById('jukebox-panel').classList.add('hidden'); }
-
-  // Proximity volume for YouTube player
-  if (ytPlayer && ytPlayer.setVolume) {
-    if (dist < 2) ytPlayer.setVolume(100);
-    else if (dist >= JUKEBOX_RANGE) ytPlayer.setVolume(0);
-    else {
-      const vol = 1 - ((dist - 2) / (JUKEBOX_RANGE - 2));
-      ytPlayer.setVolume(Math.round(vol * vol * 100));
-    }
-  }
-
-  // Animate jukebox glow
-  if (jukeboxMesh) {
-    const t = Date.now() * 0.002;
-    jukeboxMesh.children[1].material.color.setHSL((t % 1), 0.7, 0.5);
-  }
 }
 
 // ── Settings ─────────────────────────────────────────────
