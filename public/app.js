@@ -42,7 +42,7 @@ let localStream = null;
 const peerConnections = new Map();
 const remoteStreams = new Map();
 const remoteAudioElements = new Map();
-let cameraEnabled = true, micEnabled = true, pttKeyHeld = false;
+let cameraEnabled = false, micEnabled = false, pttKeyHeld = false;
 
 // Speaking detection
 let audioContext = null;
@@ -664,10 +664,12 @@ async function initMediaStream() {
       video: getVideoConstraints(),
       audio: { echoCancellation: settings.echoCancellation, noiseSuppression: true, autoGainControl: true, sampleRate: 48000, channelCount: 1 }
     });
-    if (settings.pushToTalk) {
-      localStream.getAudioTracks().forEach(t => t.enabled = false);
-      micEnabled = false; updateMediaButtons();
-    }
+    // Start with camera and mic off — player turns them on manually
+    localStream.getVideoTracks().forEach(t => t.enabled = false);
+    localStream.getAudioTracks().forEach(t => t.enabled = false);
+    cameraEnabled = false;
+    micEnabled = false;
+    updateMediaButtons();
     const pipVideo = document.getElementById('pip-video');
     pipVideo.srcObject = localStream;
     document.getElementById('pip-view').classList.remove('hidden');

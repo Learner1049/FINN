@@ -57,7 +57,7 @@ io.on('connection', (socket) => {
     const userData = {
       id: userId, username: username || 'Player',
       position: pos, rotation: 0,
-      cameraEnabled: true, micEnabled: true
+      cameraEnabled: false, micEnabled: false
     };
     const room = { code: roomCode, users: new Map() };
     room.users.set(userId, userData);
@@ -77,7 +77,7 @@ io.on('connection', (socket) => {
     const userData = {
       id: userId, username: username || 'Player',
       position: pos, rotation: 0,
-      cameraEnabled: true, micEnabled: true
+      cameraEnabled: false, micEnabled: false
     };
     room.users.set(userId, userData);
     socketToUser.set(socket.id, { userId, roomCode });
@@ -111,7 +111,7 @@ io.on('connection', (socket) => {
     const userData = {
       id: userId, username: username || 'Player',
       position: pos, rotation: 0,
-      cameraEnabled: true, micEnabled: true
+      cameraEnabled: false, micEnabled: false
     };
     targetRoom.users.set(userId, userData);
     socketToUser.set(socket.id, { userId, roomCode: targetRoom.code });
