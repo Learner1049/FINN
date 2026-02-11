@@ -2,7 +2,10 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>WorldChat</title>
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
@@ -42,25 +45,25 @@
           <span class="copy-done hidden">Copied</span>
         </button>
       </div>
-      <span class="map-badge" id="map-badge"></span>
+      <span class="map-badge desktop-only" id="map-badge"></span>
       <span class="user-count-badge" id="user-count-badge">1/50</span>
     </div>
-    <div class="top-center">
+    <div class="top-center desktop-only">
       <div id="speaking-indicator"></div>
     </div>
     <div class="top-right">
       <button class="top-btn" onclick="toggleSettings()" title="Settings">Settings</button>
-      <button class="top-btn" onclick="toggleFullscreen()" title="Fullscreen">Fullscreen</button>
+      <button class="top-btn desktop-only" onclick="toggleFullscreen()" title="Fullscreen">Fullscreen</button>
     </div>
   </div>
 
   <div id="sprint-bar-container" class="hidden"><div id="sprint-bar-fill"></div></div>
 
   <div id="hud-bar">
-    <button class="hud-btn active" id="btn-camera-toggle" onclick="toggleCamera()" title="Toggle Camera">Cam</button>
-    <button class="hud-btn active" id="btn-mic-toggle" onclick="toggleMic()" title="Toggle Microphone">Mic</button>
-    <button class="hud-btn active" id="btn-chat-toggle" onclick="toggleChat()" title="Toggle Chat">Chat</button>
-    <button class="hud-btn danger" id="btn-leave" onclick="leaveRoom()" title="Leave Room">Leave</button>
+    <button class="hud-btn active" id="btn-camera-toggle" onclick="toggleCamera()">Cam</button>
+    <button class="hud-btn active" id="btn-mic-toggle" onclick="toggleMic()">Mic</button>
+    <button class="hud-btn active" id="btn-chat-toggle" onclick="toggleChat()">Chat</button>
+    <button class="hud-btn danger" id="btn-leave" onclick="leaveRoom()">Leave</button>
   </div>
 
   <div id="crosshair"></div>
@@ -80,11 +83,13 @@
 
   <canvas id="minimap" width="160" height="160"></canvas>
 
+  <!-- Mobile controls -->
   <div id="joystick-zone" class="hidden">
     <div id="joystick-base">
       <div id="joystick-thumb"></div>
     </div>
   </div>
+  <button id="jump-btn" class="hidden" onclick="mobileJump()">Jump</button>
 
   <div id="instructions">WASD Move | Shift Run | Space Jump | Scroll Zoom | Right-drag Orbit | Tab Players | Enter Chat</div>
   <div id="toast-container"></div>

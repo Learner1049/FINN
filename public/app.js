@@ -12,7 +12,7 @@ const SPRINT_DRAIN = 30;
 const SPRINT_REGEN = 20;
 const PROXIMITY_RANGE = 20;
 const MAX_PEERS = 5;
-const POS_SEND_RATE = 50;
+let POS_SEND_RATE = 50;
 
 const MAP_DATA = { name: 'Neon Plaza', sky: 0x0a0020, ambient: 0x332266, fog: 0x0a0020, ground: 0x1a1a2e };
 const SKIN_COLOR = 0x7c3aed;
@@ -35,6 +35,7 @@ const remotePlayers = new Map();
 // Mobile joystick
 const joystick = { active: false, dx: 0, dy: 0, touchId: null };
 const isMobile = /Android|iPhone|iPad|iPod|webOS/i.test(navigator.userAgent) || ('ontouchstart' in window && window.innerWidth < 1024);
+if (isMobile) POS_SEND_RATE = 80;
 
 // WebRTC
 let localStream = null;
@@ -60,7 +61,8 @@ const settings = {
 
 function initLoginUI() {
   const container = document.getElementById('login-particles');
-  for (let i = 0; i < 30; i++) {
+  const particleCount = isMobile ? 10 : 30;
+  for (let i = 0; i < particleCount; i++) {
     const p = document.createElement('div');
     p.className = 'login-particle';
     p.style.left = Math.random() * 100 + '%';
@@ -183,6 +185,12 @@ function enterGame(userData) {
   document.getElementById('room-code-text').textContent = myRoomCode;
   document.getElementById('map-badge').textContent = MAP_DATA.name;
   document.getElementById('pip-name').textContent = myUsername;
+  if (isMobile) {
+    chatVisible = false;
+    document.getElementById('chat-panel').classList.add('hidden');
+    document.getElementById('btn-chat-toggle').classList.remove('active');
+    document.getElementById('jump-btn').classList.remove('hidden');
+  }
   initThreeJS();
   spawnLocalPlayer(userData);
   initControls();
@@ -196,23 +204,28 @@ function initThreeJS() {
   clock = new THREE.Clock();
   scene = new THREE.Scene();
   scene.background = new THREE.Color(MAP_DATA.sky);
-  scene.fog = new THREE.Fog(MAP_DATA.fog, 30, settings.renderDistance);
-  camera = new THREE.PerspectiveCamera(65, window.innerWidth / window.innerHeight, 0.1, 200);
-  renderer = new THREE.WebGLRenderer({ antialias: true });
+  const fogDist = isMobile ? 35 : settings.renderDistance;
+  scene.fog = new THREE.Fog(MAP_DATA.fog, isMobile ? 15 : 30, fogDist);
+  camera = new THREE.PerspectiveCamera(65, window.innerWidth / window.innerHeight, 0.1, isMobile ? 80 : 200);
+  renderer = new THREE.WebGLRenderer({ antialias: !isMobile, powerPreference: isMobile ? 'low-power' : 'high-performance' });
   renderer.setSize(window.innerWidth, window.innerHeight);
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
-  renderer.shadowMap.enabled = true;
-  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, isMobile ? 1.0 : 1.5));
+  if (!isMobile) {
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  }
   document.getElementById('canvas-container').appendChild(renderer.domElement);
 
-  scene.add(new THREE.AmbientLight(MAP_DATA.ambient, 0.6));
+  scene.add(new THREE.AmbientLight(MAP_DATA.ambient, isMobile ? 0.8 : 0.6));
   const dir = new THREE.DirectionalLight(0xffffff, 0.8);
   dir.position.set(10, 20, 10);
-  dir.castShadow = true;
-  dir.shadow.mapSize.set(1024, 1024);
-  dir.shadow.camera.near = 0.5; dir.shadow.camera.far = 60;
-  dir.shadow.camera.left = -30; dir.shadow.camera.right = 30;
-  dir.shadow.camera.top = 30;   dir.shadow.camera.bottom = -30;
+  if (!isMobile) {
+    dir.castShadow = true;
+    dir.shadow.mapSize.set(1024, 1024);
+    dir.shadow.camera.near = 0.5; dir.shadow.camera.far = 60;
+    dir.shadow.camera.left = -30; dir.shadow.camera.right = 30;
+    dir.shadow.camera.top = 30;   dir.shadow.camera.bottom = -30;
+  }
   scene.add(dir);
   buildMap();
   window.addEventListener('resize', () => {
@@ -228,7 +241,7 @@ function buildMap() {
     new THREE.MeshStandardMaterial({ color: MAP_DATA.ground, roughness: 0.9 })
   );
   ground.rotation.x = -Math.PI / 2;
-  ground.receiveShadow = true;
+  if (!isMobile) ground.receiveShadow = true;
   scene.add(ground);
 
   const grid = new THREE.GridHelper(100, 50, 0x333344, 0x222233);
@@ -247,7 +260,7 @@ function buildMap() {
       new THREE.MeshStandardMaterial({ color: colors[i % colors.length], emissive: colors[i % colors.length], emissiveIntensity: 0.5 })
     );
     pillar.position.set(Math.cos(angle) * r, h / 2, Math.sin(angle) * r);
-    pillar.castShadow = true;
+    if (!isMobile) pillar.castShadow = true;
     scene.add(pillar);
   }
   const platform = new THREE.Mesh(
@@ -256,11 +269,13 @@ function buildMap() {
   );
   platform.position.y = 0.15;
   scene.add(platform);
-  [0x7c3aed, 0x3b82f6, 0xf472b6].forEach((c, i) => {
-    const pl = new THREE.PointLight(c, 1, 20);
-    pl.position.set(Math.cos(i * 2) * 10, 3, Math.sin(i * 2) * 10);
-    scene.add(pl);
-  });
+  if (!isMobile) {
+    [0x7c3aed, 0x3b82f6, 0xf472b6].forEach((c, i) => {
+      const pl = new THREE.PointLight(c, 1, 20);
+      pl.position.set(Math.cos(i * 2) * 10, 3, Math.sin(i * 2) * 10);
+      scene.add(pl);
+    });
+  }
 }
 
 // ── Avatar ───────────────────────────────────────────────
@@ -269,9 +284,9 @@ function createAvatarMesh() {
   const group = new THREE.Group();
   const mat = new THREE.MeshStandardMaterial({ color: SKIN_COLOR, roughness: 0.6 });
   const body = new THREE.Mesh(new THREE.BoxGeometry(0.8, 1.0, 0.5), mat);
-  body.position.y = 1.2; body.castShadow = true; group.add(body);
+  body.position.y = 1.2; if (!isMobile) body.castShadow = true; group.add(body);
   const head = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.6, 0.6), mat);
-  head.position.y = 2.05; head.castShadow = true; group.add(head);
+  head.position.y = 2.05; if (!isMobile) head.castShadow = true; group.add(head);
   const eyeMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
   const pupilMat = new THREE.MeshBasicMaterial({ color: 0x111111 });
   [-0.12, 0.12].forEach(x => {
@@ -286,11 +301,11 @@ function createAvatarMesh() {
   group.mouthMesh = mouth;
   [-0.55, 0.55].forEach(x => {
     const arm = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.8, 0.25), mat);
-    arm.position.set(x, 1.1, 0); arm.castShadow = true; group.add(arm);
+    arm.position.set(x, 1.1, 0); if (!isMobile) arm.castShadow = true; group.add(arm);
   });
   [-0.18, 0.18].forEach(x => {
     const leg = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.7, 0.3), mat);
-    leg.position.set(x, 0.35, 0); leg.castShadow = true; group.add(leg);
+    leg.position.set(x, 0.35, 0); if (!isMobile) leg.castShadow = true; group.add(leg);
   });
   return group;
 }
@@ -663,6 +678,7 @@ async function initMediaStream() {
 }
 
 function getVideoConstraints() {
+  if (isMobile) return { width: 160, height: 120, frameRate: 15 };
   switch (settings.cameraQuality) {
     case 'low': return { width: 160, height: 120, frameRate: 15 };
     case 'high': return { width: 640, height: 480, frameRate: 30 };
@@ -828,7 +844,7 @@ function updateProximityAudio() {
 let proximityTimer = 0;
 function updateProximityConnections() {
   proximityTimer++;
-  if (proximityTimer % 60 !== 0) return;
+  if (proximityTimer % (isMobile ? 120 : 60) !== 0) return;
   if (!playerMesh || !socket) return;
   const myPos = playerMesh.position;
   const range = settings.videoRange;
@@ -846,7 +862,7 @@ function updateProximityConnections() {
 // ── Minimap ──────────────────────────────────────────────
 
 function updateMinimap() {
-  if (!settings.showMinimap) { document.getElementById('minimap').style.display = 'none'; return; }
+  if (isMobile || !settings.showMinimap) { document.getElementById('minimap').style.display = 'none'; return; }
   document.getElementById('minimap').style.display = '';
   const canvas = document.getElementById('minimap');
   const ctx = canvas.getContext('2d');
@@ -934,6 +950,10 @@ window.toggleChat = function() {
   chatVisible = !chatVisible;
   document.getElementById('chat-panel').classList.toggle('hidden', !chatVisible);
   document.getElementById('btn-chat-toggle').classList.toggle('active', chatVisible);
+};
+
+window.mobileJump = function() {
+  if (isGrounded) { playerVelocity.y = JUMP_FORCE; isGrounded = false; }
 };
 
 window.toggleSettings = function() { document.getElementById('settings-panel').classList.toggle('hidden'); };
