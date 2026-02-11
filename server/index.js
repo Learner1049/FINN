@@ -59,7 +59,7 @@ io.on('connection', (socket) => {
       position: pos, rotation: 0,
       cameraEnabled: true, micEnabled: true
     };
-    const room = { code: roomCode, users: new Map() };
+    const room = { code: roomCode, users: new Map(), jukebox: null };
     room.users.set(userId, userData);
     rooms.set(roomCode, room);
     socketToUser.set(socket.id, { userId, roomCode });
@@ -102,7 +102,7 @@ io.on('connection', (socket) => {
     if (!targetRoom) {
       // No room with space — create one
       const roomCode = generateRoomCode();
-      targetRoom = { code: roomCode, users: new Map() };
+      targetRoom = { code: roomCode, users: new Map(), jukebox: null };
       rooms.set(roomCode, targetRoom);
     }
 
@@ -171,6 +171,33 @@ io.on('connection', (socket) => {
     if (!info) return;
     const sid = findSocketByUserId(targetUserId, info.roomCode);
     if (sid) io.to(sid).emit('webrtc-ice-candidate', { fromUserId: info.userId, candidate });
+  });
+
+  // ── Jukebox ──
+  socket.on('jukebox-play', ({ videoId, title }) => {
+    const info = socketToUser.get(socket.id);
+    if (!info) return;
+    const room = rooms.get(info.roomCode);
+    if (!room) return;
+    room.jukebox = { videoId, title, startedAt: Date.now() };
+    io.to(info.roomCode).emit('jukebox-play', { videoId, title, startedAt: room.jukebox.startedAt });
+  });
+
+  socket.on('jukebox-stop', () => {
+    const info = socketToUser.get(socket.id);
+    if (!info) return;
+    const room = rooms.get(info.roomCode);
+    if (!room) return;
+    room.jukebox = null;
+    io.to(info.roomCode).emit('jukebox-stop');
+  });
+
+  socket.on('jukebox-sync', () => {
+    const info = socketToUser.get(socket.id);
+    if (!info) return;
+    const room = rooms.get(info.roomCode);
+    if (!room || !room.jukebox) return;
+    socket.emit('jukebox-play', room.jukebox);
   });
 
   socket.on('media-toggle', ({ type, enabled }) => {
